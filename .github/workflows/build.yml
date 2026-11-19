@@ -1,0 +1,80 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  XC8_VERSION: "3.10"
+  DFP_VERSION: "1.15.303"
+
+jobs:
+  tests:
+    name: Host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build and run the tests (with sanitizers)
+        run: |
+          cmake -S tests -B build-tests \
+            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          cmake --build build-tests
+          ctest --test-dir build-tests --output-on-failure
+
+  firmware:
+    name: Firmware (XC8)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache XC8 and the device pack
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/microchip
+          key: xc8-${{ env.XC8_VERSION }}-dfp-${{ env.DFP_VERSION }}
+
+      - name: Install XC8 and the PIC18F-K device pack
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/microchip && cd ~/microchip
+          curl -fsSL -A "Mozilla/5.0" -o xc8.run \
+            "https://ww1.microchip.com/downloads/aemDocuments/documents/DEV/ProductDocuments/SoftwareTools/xc8-v${XC8_VERSION}-full-install-linux-x64-installer.run"
+          chmod +x xc8.run
+          ./xc8.run --mode unattended --unattendedmodeui none --netservername localhost \
+                    --LicenseType FreeMode --prefix "$HOME/microchip/xc8"
+          rm xc8.run
+          curl -fsSL -A "Mozilla/5.0" -o dfp.atpack \
+            "https://packs.download.microchip.com/Microchip.PIC18F-K_DFP.${DFP_VERSION}.atpack"
+          mkdir dfp && unzip -q dfp.atpack -d dfp && rm dfp.atpack
+
+      - name: Build
+        run: |
+          XC8="$HOME/microchip/xc8/bin/xc8-cc"
+          DFP="$HOME/microchip/dfp/xc8"
+          mkdir -p artifact
+          cd firmware
+          for addr in 1 2 3; do
+            make clean
+            make XC8="$XC8" DFP="$DFP" NODE_ADDRESS=$addr
+            cp build/blinky.hex ../artifact/blinky-node$addr.hex
+          done
+          # The other options must build too
+          make clean
+          make XC8="$XC8" DFP="$DFP" CLOCK=XTAL16 NINE_BIT=0 DIR_PINS=1
+          make clean
+          make XC8="$XC8" DFP="$DFP" CPU=18F26K22 CLOCK=XTAL18432 FIXED_LENGTH=1 CRC_ATM=1
+          cd ../artifact && sha256sum *.hex > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vscp-demo-rs485-sbc28pc-ir4-firmware
+          path: artifact/

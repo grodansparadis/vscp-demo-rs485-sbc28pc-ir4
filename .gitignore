@@ -1,0 +1,32 @@
+# Build output
+build/
+build-*/
+*.o
+*.p1
+*.d
+*.elf
+*.hex
+*.hxl
+*.lst
+*.map
+*.sym
+*.cmf
+*.rlf
+*.sdb
+*.obj
+*.i
+*.s
+!*.S
+
+# MPLAB X
+nbproject/private/
+nbproject/Makefile-*
+dist/
+debug/
+*.mc3
+MPLABXLog.xml*
+log.*
+
+# Editors
+.vscode/
+*.swp
