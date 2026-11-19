@@ -49,8 +49,10 @@ jobs:
           curl -fsSL -A "Mozilla/5.0" -o xc8.run \
             "https://ww1.microchip.com/downloads/aemDocuments/documents/DEV/ProductDocuments/SoftwareTools/xc8-v${XC8_VERSION}-full-install-linux-x64-installer.run"
           chmod +x xc8.run
-          ./xc8.run --mode unattended --unattendedmodeui none --netservername localhost \
-                    --LicenseType FreeMode --prefix "$HOME/microchip/xc8"
+          # The installer refuses to run without root
+          sudo ./xc8.run --mode unattended --unattendedmodeui none --netservername localhost \
+                         --LicenseType FreeMode --prefix "$HOME/microchip/xc8"
+          sudo chown -R "$(id -u):$(id -g)" "$HOME/microchip"
           rm xc8.run
           curl -fsSL -A "Mozilla/5.0" -o dfp.atpack \
             "https://packs.download.microchip.com/Microchip.PIC18F-K_DFP.${DFP_VERSION}.atpack"
